@@ -15,6 +15,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import javax.swing.JButton;
 import javax.swing.JFormattedTextField;
@@ -41,8 +43,11 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 public class ListLayoutExample extends JFrame {
+
     public static final String LOTTO_PL_URL_DATA = "https://www.lotto.pl/api/lotteries/draw-results/by-date-per-game?gameType=Lotto&drawDate=%s&index=1&size=100&sort=DrawSystemId&order=DESC";
+
     public static final String[] COLUMNS = {"Id of lottery", "Lottery type", "Date of lottery", "Results"};
+
     private static final Logger log = LogManager.getLogger(ListLayoutExample.class);
 
     public static void main(String[] args) {
@@ -56,7 +61,7 @@ public class ListLayoutExample extends JFrame {
     }
 
     private ListLayoutExample() {
-
+        log.debug("start layout");
         DefaultTableModel model = new DefaultTableModel(COLUMNS, 0);
 
         JTable table = new JTable(model);
@@ -76,7 +81,6 @@ public class ListLayoutExample extends JFrame {
 
         // BUTTONS
         JPanel control = new JPanel();
-        // JPanel - sterujący
         JButton b1 = new JButton("Get results");
 
         b1.addActionListener(getResults(model, table, txtDate));
@@ -101,6 +105,7 @@ public class ListLayoutExample extends JFrame {
 
     private ActionListener getResults(DefaultTableModel model, JTable table, JFormattedTextField txtDate) {
         return e -> {
+            log.debug("get results pressed");
             table.repaint();
             final var value = txtDate.getText();
             Object[][] objects = parse(value);
@@ -122,16 +127,14 @@ public class ListLayoutExample extends JFrame {
         };
     }
 
-
     private Object[][] parse(String date) {
         CloseableHttpAsyncClient httpClient = HttpAsyncClients.createDefault();
         httpClient.start();
         String url = String.format(LOTTO_PL_URL_DATA, date);
         BasicAsyncResponseConsumer consumer = new BasicAsyncResponseConsumer();
         Future<HttpResponse> future = httpClient.execute(HttpAsyncMethods.createGet(url), consumer, null);
-        final String json;
         try (InputStream content = future.get().getEntity().getContent()) {
-            json = IOUtils.toString(content, Charset.defaultCharset());
+            String json = IOUtils.toString(content, Charset.defaultCharset());
             return extract(json);
         } catch (Exception e) {
             log.error("something went wrong", e);
@@ -151,9 +154,9 @@ public class ListLayoutExample extends JFrame {
             for (int n = 0; n < results.length(); n++) {
                 Object[] singleResult = new Object[4];
                 JSONObject item = results.getJSONObject(n);
+                final ZonedDateTime drawDate = ZonedDateTime.parse(item.getString("drawDate"));
                 log.info("the id is {}", item.getInt("drawSystemId"));
                 log.info("the game type is {}", item.getString("gameType"));
-                final ZonedDateTime drawDate = ZonedDateTime.parse(item.getString("drawDate"));
                 log.info("date is {}", drawDate);
                 log.info("result  is {}", item.getJSONArray("resultsJson").toString());
                 singleResult[0] = (item.getInt("drawSystemId"));
@@ -163,8 +166,7 @@ public class ListLayoutExample extends JFrame {
                 result.add(singleResult);
             }
         }
-        final Object[][] objects = result.toArray(Object[][]::new);
-        return objects;
+        return result.toArray(Object[][]::new);
     }
 
 }
